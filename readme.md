@@ -89,7 +89,6 @@ A reference implementation (unoptimized) is provided as a baseline. Your goal is
      - Post-implementation latency.
      - Comparison between computed and reference outputs.
      - Anything else worth discussing.
-
 ---
 
 ## Evaluation Criteria
