@@ -1,3 +1,5 @@
 project_1/
 *.log
 result
+project_runs/
+.vscode/
