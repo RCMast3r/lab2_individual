@@ -1,0 +1,112 @@
+#include "dcl.h"
+#include <hls_stream.h>
+// #include <hls_math.h>
+#include <cmath>
+#include "hls_math.h"
+
+// typedef ap_fixed<32, 8> fixed_t;
+
+void softmax_HLS(hls::stream<fixed_t>& in, hls::stream<fixed_t>& out) {
+#pragma HLS INLINE off
+    fixed_t buffer[N];
+    fixed_t max_val = -1e9;
+    fixed_t sum = 0;
+
+    // Read input stream & find max
+    for (int j = 0; j < N; ++j) {
+#pragma HLS PIPELINE
+        buffer[j] = in.read();
+        if (buffer[j] > max_val) {
+            max_val = buffer[j];
+        }
+    }
+
+    // Compute exponentials & sum
+    for (int j = 0; j < N; ++j) {
+#pragma HLS PIPELINE
+        buffer[j] = hls::exp(buffer[j] - max_val);
+        sum += buffer[j];
+    }
+
+    // Normalize
+    for (int j = 0; j < N; ++j) {
+#pragma HLS PIPELINE
+        out.write(buffer[j] / sum);
+    }
+}
+
+void compute_attention_HLS(fixed_t Q[B][N][dk], fixed_t K[B][N][dk], fixed_t V[B][N][dv], fixed_t Output[B][N][dv]) {
+#pragma HLS INTERFACE m_axi port=Q offset=slave bundle=mem1
+#pragma HLS INTERFACE m_axi port=K offset=slave bundle=mem1
+#pragma HLS INTERFACE m_axi port=V offset=slave bundle=mem1
+#pragma HLS INTERFACE m_axi port=Output offset=slave bundle=mem2
+#pragma HLS INTERFACE s_axilite port=return
+
+
+    fixed_t Q_local[B][N][dk];
+    fixed_t K_local[B][N][dk];
+    fixed_t V_local[B][N][dv];
+
+    // next, allocate our local output that we will copy to the back out
+    fixed_t output_local[B][N][dv];
+    for(size_t i = 0; i < B; i++)
+    {
+        for(size_t j = 0; j < N; j++)
+        {
+            for(size_t k = 0; k < dk; k++)
+            {
+                Q_local[i][j][k] = Q[i][j][k];
+                K_local[i][j][k] = K[i][j][k];
+            }
+
+            for(size_t kk = 0; kk < dv; kk++)
+            {
+                V_local[i][j][kk] = V[i][j][kk];
+            }
+
+        }
+    }
+
+
+#pragma HLS DATAFLOW
+
+    hls::stream<fixed_t, N/2> attention_stream[B][N];
+    hls::stream<fixed_t, N/2> softmax_stream[B][N];
+    fixed_t scale = 1.0 / sqrt((float)dk);
+
+    for (int b = 0; b < B; ++b) {
+        for (int i = 0; i < N; ++i) {
+            for (int j = 0; j < N; ++j) {
+#pragma HLS PIPELINE II=1
+                fixed_t sum = 0;
+                for (int k = 0; k < dk; ++k) {
+#pragma HLS UNROLL factor=4
+                    sum += Q_local[b][i][k] * K_local[b][j][k];
+                }
+                attention_stream[b][i].write(sum * scale);
+            }
+        }
+    }
+
+    // Apply softmax (Streaming)
+    for (int b = 0; b < B; ++b) {
+        for (int i = 0; i < N; ++i) {
+            softmax_HLS(attention_stream[b][i], softmax_stream[b][i]);
+        }
+    }
+
+    // Compute Attention * V
+    for (int b = 0; b < B; ++b) {
+        for (int i = 0; i < N; ++i) {
+            for (int j = 0; j < dv; ++j) {
+#pragma HLS PIPELINE II=1
+                fixed_t sum = 0;
+                for (int k = 0; k < N; ++k) {
+#pragma HLS UNROLL factor=4 // combined with II=1, in each single interval we are handling 4 of these computations
+                    sum += softmax_stream[b][i].read() * V_local[b][k][j];
+                }
+                Output[b][i][j] = sum;
+            }
+        }
+    }
+}

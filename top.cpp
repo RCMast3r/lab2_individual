@@ -1,57 +1,30 @@
 #include "dcl.h"
-#include "hls_task.h"
-#include "hls_stream.h"
-
-#define num_inner_parallel 32
 
 
-void scaled_dot_product(fixed_t qs_in[N][dk], fixed_t ks_in[N][dk], fixed_t att_out[N][N])
-{
-    ap_fixed<32, 8> scale = 1.0 / sqrt((float)dk);
-    
-    // i want make the outer loop "threaded" as there is no data inter-deps here
-    
-    for (int i = 0; i < N; ++i) {
-        for (int j = 0; j < N; ++j) {
-            ap_fixed<32, 8> sum = 0;
-            for (int k = 0; k < dk; ++k) {
-                sum += qs_in[i][k] * ks_in[j][k];
+
+void softmax_HLS(fixed_t matrix[B][N][N]) {
+    for (int b = 0; b < B; ++b) {
+        for (int i = 0; i < N; ++i) {
+            ap_fixed<32, 8> max_val = matrix[b][i][0];
+            for (int j = 1; j < N; ++j) {
+                if (matrix[b][i][j] > max_val) {
+                    max_val = matrix[b][i][j];
+                }
             }
-            att_out[i][j] = sum * scale;
-        }
-    }
 
-}
-
-void softmax_HLS(fixed_t matrix[N][N]) {
-
-    // TP: good possibility for task-level parallelization: stream results into one-another in this for-loop
-    for (int i = 0; i < N; ++i) {
-        ap_fixed<32, 8> max_val = matrix[i][0];
-        ap_fixed<32, 8> sum = 0;
-        for (int j = 0; j < N; ++j) {
-            matrix[i][j] = hls::exp(matrix[i][j] - max_val);
-            sum += matrix[i][j];
-        }
-
-        for (int j = 0; j < N; ++j) {
-            matrix[i][j] /= sum;
-        }
-    }
-}
-
-void output_attention(fixed_t attention_in[N][N], fixed_t V_in[N][dv], fixed_t attention_out[N][dv])
-{
-    for (int i = 0; i < N; ++i) {
-        for (int j = 0; j < dv; ++j) {
             ap_fixed<32, 8> sum = 0;
-            for (int k = 0; k < N; ++k) {
-                sum += attention_in[i][k] * V_in[k][j];
+            for (int j = 0; j < N; ++j) {
+                matrix[b][i][j] = hls::exp(matrix[b][i][j] - max_val);
+                sum += matrix[b][i][j];
             }
-            attention_out[i][j] = sum;
+
+            for (int j = 0; j < N; ++j) {
+                matrix[b][i][j] /= sum;
+            }
         }
     }
 }
+
 
 void compute_attention_HLS(fixed_t Q[B][N][dk], fixed_t K[B][N][dk], fixed_t V[B][N][dv], fixed_t Output[B][N][dv]) {
 #pragma HLS interface m_axi port=Q offset=slave bundle=mem1
@@ -61,46 +34,38 @@ void compute_attention_HLS(fixed_t Q[B][N][dk], fixed_t K[B][N][dk], fixed_t V[B
 
 #pragma HLS interface s_axilite port=return
 
-    // first-things-first, we need to copy the args to BRAM from DRAM:
-    // next, allocate our local output that we will copy to the back out
-    for(size_t i = 0; i < B; i++)
-    {
-#pragma HLS unroll
-        fixed_t Q_local[N][dk];
-        fixed_t K_local[N][dk];
-        fixed_t V_local[N][dv];
 
-        fixed_t output_local[N][dv];
-        for(size_t j = 0; j < N; j++)
-        {
-            for(size_t k = 0; k < dk; k++)
-            {
-                Q_local[j][k] = Q[i][j][k];
-                K_local[j][k] = K[i][j][k];
+    fixed_t attention[B][N][N];
+    ap_fixed<32, 8> scale = 1.0 / sqrt((float)dk);
+
+    // Compute Q * K^T
+    for (int b = 0; b < B; ++b) {
+        for (int i = 0; i < N; ++i) {
+            for (int j = 0; j < N; ++j) {
+                ap_fixed<32, 8> sum = 0;
+                for (int k = 0; k < dk; ++k) {
+                    sum += Q[b][i][k] * K[b][j][k];
+                }
+                attention[b][i][j] = sum * scale;
             }
-
-            for(size_t kk = 0; kk < dv; kk++)
-            {
-                V_local[j][kk] = V[i][j][kk];
-            }
-
         }
-        fixed_t attention[N][N];
-        
-        scaled_dot_product(Q_local, K_local, attention);
-        softmax_HLS(attention);
-        output_attention(attention, V_local, output_local);
-        
-        for(size_t j = 0; j < N; j++)
-        {
-            for(size_t kk = 0; kk < dv; kk++)
-            {
-                Output[i][j][kk] = output_local[j][kk];
+    }
+
+    // Apply softmax
+    softmax_HLS(attention);
+
+    // Compute Attention * V
+    for (int b = 0; b < B; ++b) {
+        for (int i = 0; i < N; ++i) {
+            for (int j = 0; j < dv; ++j) {
+                ap_fixed<32, 8> sum = 0;
+                for (int k = 0; k < N; ++k) {
+                    sum += attention[b][i][k] * V[b][k][j];
+                }
+                Output[b][i][j] = sum;
             }
         }
     }
 
 
-
-// write out to the actual output from BRAM
 }
