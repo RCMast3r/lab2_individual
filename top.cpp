@@ -62,48 +62,45 @@ void compute_attention_HLS(fixed_t Q[B][N][dk], fixed_t K[B][N][dk], fixed_t V[B
 #pragma HLS interface s_axilite port=return
 
     // first-things-first, we need to copy the args to BRAM from DRAM:
-    fixed_t Q_local[B][N][dk];
-    fixed_t K_local[B][N][dk];
-    fixed_t V_local[B][N][dv];
-
     // next, allocate our local output that we will copy to the back out
-    fixed_t output_local[B][N][dv];
     for(size_t i = 0; i < B; i++)
     {
+#pragma HLS unroll
+        fixed_t Q_local[N][dk];
+        fixed_t K_local[N][dk];
+        fixed_t V_local[N][dv];
+
+        fixed_t output_local[N][dv];
         for(size_t j = 0; j < N; j++)
         {
             for(size_t k = 0; k < dk; k++)
             {
-                Q_local[i][j][k] = Q[i][j][k];
-                K_local[i][j][k] = K[i][j][k];
+                Q_local[j][k] = Q[i][j][k];
+                K_local[j][k] = K[i][j][k];
             }
 
             for(size_t kk = 0; kk < dv; kk++)
             {
-                V_local[i][j][kk] = V[i][j][kk];
+                V_local[j][kk] = V[i][j][kk];
             }
 
         }
-    }
-
-    for(size_t i = 0; i < B; i++)
-    {
-#pragma HLS unroll
         fixed_t attention[N][N];
-        scaled_dot_product(Q_local[i], K_local[i], attention);
+        
+        scaled_dot_product(Q_local, K_local, attention);
         softmax_HLS(attention);
-        output_attention(attention, V_local[i], output_local[i]);
-    }
-
-// write out to the actual output from BRAM
-    for(size_t i = 0; i < B; i++)
-    {
+        output_attention(attention, V_local, output_local);
+        
         for(size_t j = 0; j < N; j++)
         {
             for(size_t kk = 0; kk < dv; kk++)
             {
-                Output[i][j][kk] = output_local[i][j][kk];
+                Output[i][j][kk] = output_local[j][kk];
             }
         }
     }
+
+
+
+// write out to the actual output from BRAM
 }
