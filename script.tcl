@@ -1,4 +1,4 @@
-open_project project_1
+open_project lab2_run_3
 
 # set top function of the HLS design
 set_top compute_attention_HLS
@@ -27,9 +27,9 @@ set_part {xczu3eg-sbva484-1-e}
 csynth_design
 
 # C/RTL co-simulation; can be commented if not needed
-cosim_design
+# cosim_design
 
 # export generated RTL as an IP; can be commented if not needed
-export_design -format ip_catalog -flow syn
+# export_design -format ip_catalog -flow impl
 
 exit

@@ -4,6 +4,7 @@ using namespace std;
 
 
 void softmax(float matrix[B][N][N]) {
+    
     for (int b = 0; b < B; ++b) {
         for (int i = 0; i < N; ++i) {
             float max_val = matrix[b][i][0];
@@ -12,7 +13,6 @@ void softmax(float matrix[B][N][N]) {
                     max_val = matrix[b][i][j];
                 }
             }
-
             float sum = 0;
             for (int j = 0; j < N; ++j) {
                 matrix[b][i][j] = exp(matrix[b][i][j] - max_val);
@@ -25,6 +25,8 @@ void softmax(float matrix[B][N][N]) {
         }
     }
 }
+
+
 
 void compute_attention(fixed_t Q[B][N][dk], fixed_t K[B][N][dk], fixed_t V[B][N][dv], fixed_t Output[B][N][dv]) {
     float attention[B][N][N];
