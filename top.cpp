@@ -5,7 +5,6 @@ void compute_attention_on_q_row(fixed_t Q_local_row[dk], fixed_t K_local[N][dk],
 #pragma HLS array_partition variable=K_local dim=2 complete
     const ap_fixed<32, 8> scale = 1.0 / sqrt((float)dk);
     for (int j = 0; j < N; ++j) {
-        // ap_fixed<16, 8> sum = 0;
         ap_fixed<32, 8> sum_local[dk]; // made this to solve DSP utilization issues in this unroll
         #pragma HLS array_partition variable=sum_local dim=1 complete
         for (int k = 0; k < dk; ++k) {
@@ -24,18 +23,27 @@ void compute_attention_on_q_row(fixed_t Q_local_row[dk], fixed_t K_local[N][dk],
 }
 
 void compute_softmax_on_row(fixed_t attention[N]) {
+#define exp_unroll_factor 6 
 #pragma HLS array_partition variable=attention dim=1 complete
     ap_fixed<32, 8> max_val = attention[0];
     for (int j = 1; j < N; ++j) {
+    #pragma HLS pipeline // pipeline because loop iterations are dependent. already was auto-pipelined by HLS
         if (attention[j] > max_val) {
             max_val = attention[j];
         }
     }
 
     ap_fixed<32, 8> sum = 0;
-    for (int j = 0; j < N; ++j) {
-        attention[j] = hls::exp(attention[j] - max_val);
-        sum += attention[j];
+    // can triple up here since we are using around 11% of the DSPs here, and we are at 74% usage on DSPs
+    // so in theory we can add another 22% and be fine. it appears, however, that parallelizing this did not 
+    // increase the final resource usage so im bumping this up to 6 to be done
+    for (int j = 0; j < N; j+=exp_unroll_factor) {
+        #pragma HLS pipeline // this should already be pipelined, but being explicit
+        for(int jj=0; jj<exp_unroll_factor; jj++) {
+            #pragma HLS unroll // partial loop unroll
+            attention[j+jj] = hls::exp(attention[j+jj] - max_val);
+            sum += attention[j+jj];
+        }
     }
 
     for (int j = 0; j < N; ++j) {
