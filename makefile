@@ -14,6 +14,9 @@ all:
 	g++ generate_tensors.cpp -o result_gen_tens $(CFLAG) $(IFLAG)
 	g++ compute_attention.cpp -o result_compute_att $(CFLAG) $(IFLAG)
 	g++ host.cpp top.cpp -o result $(CFLAG) $(IFLAG)
+
+top:
+	g++ host.cpp top.cpp -o result $(CFLAG) $(IFLAG)
 	
 clean:
 	rm -f *.o result

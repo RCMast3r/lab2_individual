@@ -1,4 +1,4 @@
-open_project lab2_run_5
+open_project lab2_run_6
 
 # set top function of the HLS design
 set_top compute_attention_HLS
@@ -30,6 +30,6 @@ csynth_design
 # cosim_design
 
 # export generated RTL as an IP; can be commented if not needed
-# export_design -format ip_catalog -flow impl
+# export_design -format ip_catalog -flow syn
 
 exit

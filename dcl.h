@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <cstdint>
 
-typedef ap_fixed<32, 5> fixed_t;
+typedef ap_fixed<16, 5> fixed_t;
 
 // Define tensor dimensions
 #define B   4      // Batch size
