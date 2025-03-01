@@ -3,17 +3,17 @@
 void compute_attention_on_q_row(fixed_t Q_local_row[dk], fixed_t K_local[N][dk], fixed_t attention[N]) {
 #pragma HLS array_partition variable=Q_local_row dim=1 complete
 #pragma HLS array_partition variable=K_local dim=2 complete
-    const ap_fixed<16, 8> scale = 1.0 / sqrt((float)dk);
+    const ap_fixed<32, 8> scale = 1.0 / sqrt((float)dk);
     for (int j = 0; j < N; ++j) {
         // ap_fixed<16, 8> sum = 0;
-        fixed_t sum_local[dk]; // made this to solve DSP utilization issues in this unroll
+        ap_fixed<32, 8> sum_local[dk]; // made this to solve DSP utilization issues in this unroll
         #pragma HLS array_partition variable=sum_local dim=1 complete
         for (int k = 0; k < dk; ++k) {
         #pragma HLS unroll
             sum_local[k] = Q_local_row[k] * K_local[j][k]; 
         }
 
-        ap_fixed<16, 8> sum = 0;
+        ap_fixed<32, 8> sum = 0;
         for(int k =0; k < dk; k++) {
             #pragma HLS unroll
             sum+=sum_local[k];
@@ -49,7 +49,7 @@ void compute_attention_v_vec_mul_on_row(fixed_t attention[N], fixed_t V_local[N]
 #pragma HLS array_partition variable=V_local dim=1 complete
     for (int j = 0; j < dv; ++j) {
         
-        fixed_t sum_local[N]; // made this to solve DSP utilization issues in this unroll
+        ap_fixed<32, 8> sum_local[N]; // made this to solve DSP utilization issues in this unroll
         #pragma HLS array_partition variable=sum_local dim=1 complete
         for (int k = 0; k < N; ++k) {
         #pragma HLS unroll
@@ -58,7 +58,7 @@ void compute_attention_v_vec_mul_on_row(fixed_t attention[N], fixed_t V_local[N]
         
         ap_fixed<32, 8> sum = 0;
         for(int k =0; k < N; k++) {
-            #pragma HLS unroll
+        #pragma HLS unroll
             sum+=sum_local[k];
         }
         output_vec_local[j] = sum;
