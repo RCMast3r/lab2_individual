@@ -15,7 +15,7 @@ void compute_attention_on_q_row(fixed_t Q_local_row[dk], fixed_t K_local[N][dk],
 
         ap_fixed<16, 8> sum = 0;
         for(int k =0; k < dk; k++) {
-            #pragma HLS pipeline
+            #pragma HLS unroll
             sum+=sum_local[k];
         }
 
@@ -45,14 +45,26 @@ void compute_softmax_on_row(fixed_t attention[N]) {
 }
 
 void compute_attention_v_vec_mul_on_row(fixed_t attention[N], fixed_t V_local[N][dv], fixed_t output_vec_local[dv]) {
+#pragma HLS array_partition variable=attention dim=1 complete
+#pragma HLS array_partition variable=V_local dim=1 complete
     for (int j = 0; j < dv; ++j) {
-        ap_fixed<32, 8> sum = 0;
+        
+        fixed_t sum_local[N]; // made this to solve DSP utilization issues in this unroll
+        #pragma HLS array_partition variable=sum_local dim=1 complete
         for (int k = 0; k < N; ++k) {
-            sum += attention[k] * V_local[k][j];
+        #pragma HLS unroll
+            sum_local[k] = attention[k] * V_local[k][j];
+        }
+        
+        ap_fixed<32, 8> sum = 0;
+        for(int k =0; k < N; k++) {
+            #pragma HLS unroll
+            sum+=sum_local[k];
         }
         output_vec_local[j] = sum;
     }
 }
+
 // saves holding of attention mat in BRAM
 void handle_row_operations(fixed_t Q_local[N][dk], fixed_t K_local[N][dk], fixed_t V_local[N][dv], fixed_t output_matrix_local[N][dv])
 {
