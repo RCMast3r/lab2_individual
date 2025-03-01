@@ -67,8 +67,6 @@ A reference implementation (unoptimized) is provided as a baseline. Your goal is
    - Simplify or approximate the softmax computation to reduce latency.
 4. **Latency Analysis**:
    - Identify bottlenecks and optimize them (e.g., improve softmax efficiency or scaling operations).
-5. **LightningSim**:
-   - Use the LightningSim tool from Sharc Lab to quickly estimate total latency and compare results.
 6. **Printing Values**:
    - When printing `ap_fixed` type values using `%f`, remember to add `.to_float()`; otherwise, it always prints zero.
 

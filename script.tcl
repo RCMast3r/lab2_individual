@@ -1,4 +1,4 @@
-open_project lab2_run_3
+open_project lab2_run_5
 
 # set top function of the HLS design
 set_top compute_attention_HLS
@@ -15,7 +15,7 @@ add_files -tb V_tensor.bin
 add_files -tb K_tensor.bin
 add_files -tb Output_tensor.bin
 
-open_solution "solution1"
+open_solution "solution2"
 
 # FPGA part and clock configuration
 set_part {xczu3eg-sbva484-1-e}
